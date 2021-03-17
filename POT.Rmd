@@ -1,0 +1,93 @@
+---
+title: "POT"
+author: "Julien Ancel"
+date: "17/03/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(POT)
+library(ggplot2)
+```
+
+```{r}
+data <- read.csv("full_data.csv")
+head(data)
+```
+
+```{r}
+x <- data$distance
+mean(x)
+sd(x)
+max(x)
+min(x)
+```
+
+```{r}
+#Plot le graphe des exces
+exceedances <- rep(0.0, max(x)-1)
+for (u in 1:max(x)-1){
+  e <- 0.0
+  n <- 0
+  for (i in 1:length(x)){
+    if (x[i]>u){
+    e <- e + x[i]-u
+    n <- n+1
+    }
+  }
+  exceedances[u] <- e/n
+} 
+
+plot(x=seq(1,max(x)-1), y = exceedances)
+```
+
+
+```{r}
+shapes <- rep(0.0, 55)
+my_scales <- rep(0.0,55)
+std_err_sh <- rep(0.0, 55)
+std_err_sc <- rep(0.0, 55)
+for( seuil in seq(1:55)){
+  ##Maximum likelihood estimate :
+  mle <- fitgpd(x, seuil)
+  shapes[seuil] <- mle$fitted.values['shape']
+  my_scales[seuil] <- mle$fitted.values['scale']
+  std_err_sh[seuil] <- mle$std.err['shape']
+  std_err_sc[seuil] <- mle$std.err['scale']
+}
+seuils <- seq(1:55)
+df<-data.frame(seuils, my_scales, shapes, std_err_sc, std_err_sh)
+ggplot(data = df)+ggtitle("Stabilité du paramètre shape")+
+  geom_line(aes(x = seuils,y=shapes),color='red')+
+  geom_ribbon(aes(x = seuils, ymin = shapes - 2 * std_err_sh, ymax = shapes + 2*std_err_sh),alpha=0.1,fill='blue')
+
+```
+```{r}
+ggplot(data = df)+ggtitle("Stabilité du paramètre scale")+
+  geom_line(aes(x = seuils,y=my_scales),color='red')+
+  geom_ribbon(aes(x = seuils, ymin = my_scales - 2 * std_err_sc, ymax = my_scales + 2*std_err_sc),alpha=0.1,fill='blue')
+```
+
+
+```{r}
+#probabilité que la variable originale ne dépasse pas la valeur val avec le seuil optimal mis dans pgpd. Ce seuil est obtenu grâce aux graphiques précédents : c'est autour de 35.
+val<-40
+seuil <- 35
+mle<- fitgpd(x, seuil)
+proba <- 1 - (1 - length(mle$exceed)/length(mle$data))*(1 - pgpd(q=val,loc = seuil,scale = mle$fitted.values['scale'],shape = mle$fitted.values['shape'] ))
+print(proba)
+```
+
+
+
+```{r}
+##Generic function for the univariate and bivariate cases:
+plot(mle)
+```
+
+
+
